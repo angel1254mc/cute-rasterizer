@@ -1,7 +1,8 @@
 #include "../../src/ruda.h"
 #include "../../src/rudautils.h"
 #include <chrono>
-#include<unistd.h>
+#include <unistd.h>
+#include <vector>
 float vertices[] = {
     -1.0f,-1.0f,-1.0f, // triangle 1 : begin
     -1.0f,-1.0f, 1.0f,
@@ -98,6 +99,33 @@ float colors[] = {
     1.0f, 1.0f, 0.0f  // Yellow
 };
 
+class Cube {
+
+    mat<4, 4> rotationMatrix;
+    vec<4> translationVector;
+    public:
+    float x;
+    float y;
+    float z;
+    int scale;
+    uint cube_vbo;
+
+    Cube(float x, float y, float z, int scale, uint cube_vbo) : x(x), y(y), z(z), scale(scale), cube_vbo(cube_vbo) {
+        translationVector = vec4{x, y, z, 0};
+    };
+
+    void rotate(float angleRad) {
+        rotationMatrix = rotateX(angleRad) * rotateY(angleRad) * rotateZ(angleRad);
+    };
+
+    void draw() {
+        rudaBindBuffer(RUDA_VERTEX_BUFFER, cube_vbo);
+        rudaTranslateMatrix(translationVector);
+        rudaTransformMatrix(rotationMatrix);
+        rudaDrawArrays(RUDA_TRIANGLES, 36);
+    };
+};
+
 
 
 int main() {
@@ -138,27 +166,24 @@ int main() {
   
     rudaBindBuffer(RUDA_COLOR_BUFFER, color_buffer);
     rudaBufferData(RUDA_COLOR_BUFFER, sizeof(colors), colors, STATIC_DRAW);
-    // if no model (transformation) matrix, identity matrix
-    // if no view matrix (world-to-view), slap identity matrix too
-    // if no projection matrix, we once again have the identity matrix
+
+    std::vector<Cube*> cubes;
+    cubes.push_back(new Cube(0, 0, 50, 1, vertex_buffer));
+    cubes.push_back(new Cube(-3, -3, 50, 1, vertex_buffer));
+    cubes.push_back(new Cube(3, 3, 50, 1, vertex_buffer));
+
     mat<4, 4> perspective = genPerspective(500, 500);
     rudaProjectionMatrix(perspective);
+
     float angle = 0;
+
 	while(true) {
         rudaClearFB();
-		mat<4, 4> transform = (rotateX(angle) * rotateZ(angle));
-		vec4 translation;
-        std::cout << "Made it" << std::endl;
-        translation[2] = 100;
-		angle += 0.01f;
-        std::cout << "Loooped" << std::endl;
-		//std::chrono::time_point<std::chrono::system_clock> startTime = std::chrono::system_clock::now();
-
-		// Set the transform matrix
-        rudaTranslateMatrix(translation);
-		rudaTransformMatrix(transform);
-        std::cout << "Transforms provided" << std::endl;
-		rudaDrawArrays(RUDA_TRIANGLES, 36);
+        angle  += 0.01;
+        for (Cube* cube : cubes) {
+            cube->rotate(angle);
+            cube->draw();
+        }
 
 		std::chrono::time_point<std::chrono::system_clock> endTime = std::chrono::system_clock::now();
 		// 36 vertices in total, so we give 36 as count

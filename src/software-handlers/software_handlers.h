@@ -281,8 +281,8 @@ void software_drawArrays(Ruda_Context* ctx, Draw_Mode mode,  int count) {
 	//	return;
 
 	// Reset depth buffer before triangles are rasterized
-	for (int i = 0; i < ctx->width * ctx->height; i++)
-		ctx->depth_buffer[i] = std::numeric_limits<float>::max();
+	//for (int i = 0; i < ctx->width * ctx->height; i++)
+	//	ctx->depth_buffer[i] = std::numeric_limits<float>::max();
 
 
 	// Commented out because this occurs on rudaClearFB
@@ -317,10 +317,13 @@ void software_drawArrays(Ruda_Context* ctx, Draw_Mode mode,  int count) {
 }
 
 void software_clearFB(Ruda_Context* ctx,  float r = 0, float g = 0, float b = 0)  {
-	for (int i =0; i < ctx->height; i++)
-		for (int j = 0; j < ctx->width; j++) {
-			ctx->framebuffer[(i * ctx->height  + j)] = r;
-			ctx->framebuffer[(i * ctx->height  + j + 1)] = g;
-			ctx->framebuffer[(i * ctx->height  + j + 2)] = b;
+	int width = (int) ctx->width;
+	int height = (int) ctx->height;
+	for (int i =0; i < height; i++)
+		for (int j = 0; j < width; j++) {
+			ctx->depth_buffer[i * height + j] = std::numeric_limits<float>::max();
+			ctx->framebuffer[(i * height  + j) * 3] = r;
+			ctx->framebuffer[(i * height  + j) * 3 + 1] = g;
+			ctx->framebuffer[(i * height  + j) * 3 + 2] = b;
 		};
 }

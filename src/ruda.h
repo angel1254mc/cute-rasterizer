@@ -32,7 +32,7 @@ void rudaDrawArrays(Draw_Mode mode, int count);
  * @brief Clears the current framebuffer, with the option to provide a color to fill the fb with
  * @note by default, rudaClearFB sets all pixels in the fb to black
 */
-void rudaClearFB(float r, float g, float b);
+void rudaClearFB(float r = 0, float g = 0, float b = 0);
 
 void rudaProjectionMatrix(mat<4, 4>& mat);
 void rudaTransformMatrix(mat<4, 4>& mat);
