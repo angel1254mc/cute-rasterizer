@@ -1,6 +1,7 @@
 #pragma once
 #include "geometry.h"
 #include <cmath>
+#include "./util/lodepng.h"
 
 mat<4, 4> rotateX(float angle) {
     mat<4, 4> rotationX;
@@ -59,4 +60,41 @@ mat<4, 4> genPerspective(int w, int h, float fNear = 0.1f, float fFar = 1000.0f,
     projection[3][3] = 0.0f;
 
     return projection;
+}
+
+struct PNGTexture {
+    public:
+    uint width;
+    uint height;
+    float* data;
+};
+
+std::ostream& operator<<(std::ostream& os, const PNGTexture& texture) {
+    os << "Width: " << texture.width << ", Height: " << texture.height << ", Data loaded: " << (texture.data ? "Yes" : "No");
+    if (texture.data) {
+        size_t lengthInBytes = texture.width * texture.height * 3 * sizeof(float); // Assuming RGBA format
+        os << ", Data length: " << lengthInBytes << " bytes";
+    }
+    return os;
+}
+PNGTexture loadPNG(const std::string& path) {
+    PNGTexture texture;
+
+    std::vector<unsigned char> imageData;
+    unsigned error = lodepng::decode(imageData, texture.width, texture.height, path, LCT_RGB);
+    if (error) {
+        std::cerr << "Failed to load PNG" << error <<  std::endl;
+        texture.width = 0;
+        texture.height = 0;
+        texture.data = nullptr;
+        return texture;
+    }
+
+    // Allocate memory for float array
+    texture.data = new float[texture.width * texture.height * 3]; // Assuming RGBA format
+
+    // Convert unsigned char image data to float
+    std::copy(imageData.begin(), imageData.end(), texture.data);
+
+    return texture;
 }

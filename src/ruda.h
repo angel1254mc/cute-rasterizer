@@ -3,7 +3,6 @@
 #include "context.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-
 // Takes
 void rudaGenBuffers(uint n, uint *buffers);
 
@@ -39,3 +38,8 @@ void rudaTransformMatrix(mat<4, 4>& mat);
 void rudaTranslateMatrix(vec4 vecTranslate);
 void ruda_test_print_bound_buffer(uint length);
 void rudaTempDrawToWindow(Display* display, Window window);
+
+void rudaGenTextures(uint n, uint* textures);
+void rudaDeleteTextures(uint n, uint *buffers);
+void rudaBindTexture(Ruda_Texture_Target target, uint texture);
+void rudaTexImage2D(Ruda_Texture_Target target, Texture_Format format, uint width, uint height, const void * data);

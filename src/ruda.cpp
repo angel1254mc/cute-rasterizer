@@ -18,6 +18,15 @@ void rudaGenBuffers(uint n, uint *buffers) {
 
 }
 
+void rudaGenTextures(uint n, uint* textures) {
+    for (int i = 0; i < n; i++) {
+        ctx.textures.push_back(new Ruda_Texture_Object());
+        textures[i] = ctx.textures.size() - 1;
+    }
+
+    return;
+}
+
 void rudaDeleteBuffers(uint n, uint *buffers) {
     for (int i = 0; i < n; i++) {
         // For each buffer in the buffers array
@@ -33,6 +42,17 @@ void rudaDeleteBuffers(uint n, uint *buffers) {
         // For now, just to make implementation simple
         // However- for large amounts of VBOs being created on each render
         // loop, this is NOT a good strategy at all lol
+    }
+}
+
+void rudaDeleteTextures(uint n, uint *buffers) {
+    for (int i = 0; i < n; i++) {
+        Ruda_Texture_Object* tex = ctx.textures[buffers[i]];
+
+        if (tex->is_bound) {
+            ctx.bound_texture = nullptr;
+        }
+        delete tex;
     }
 }
 
@@ -63,6 +83,20 @@ void rudaBindBuffer(Buffer_Target target, uint buffer) {
     }
 }
 
+void rudaBindTexture(Ruda_Texture_Target target, uint texture) {
+    if (ctx.textures.size() <= texture) {
+        throw std::invalid_argument("rudaBindTexture 'texture' argument must match a created texture!");
+    }     
+    if (ctx.bound_texture)
+        ctx.bound_texture->is_bound = false;
+
+    ctx.bound_texture = ctx.textures.at(texture);
+    // Update the bound buffer's purpose/target
+    ctx.bound_texture_target = target;
+    ctx.bound_texture->is_bound = true;
+
+}
+
 
 void rudaBufferData(Buffer_Target target, uint size, float* data, Buffer_Usage usage) {
 
@@ -72,7 +106,7 @@ void rudaBufferData(Buffer_Target target, uint size, float* data, Buffer_Usage u
             std::cout << "rudaBufferData: Deleting/Freeing old buffered data." << std::endl;
         }
         if (CUDA_ENABLED) {
-            //freeDeviceMemory(&ctx);
+            //freeBufferMemory(&ctx);
         } else {
             delete ctx.bound_buffer->buffer_pointer;
         }
@@ -85,6 +119,30 @@ void rudaBufferData(Buffer_Target target, uint size, float* data, Buffer_Usage u
         //cuda_bufferData(&ctx, (float*)data);
     } else {
         software_bufferData(&ctx, data, size);
+    }
+}
+
+void rudaTexImage2D(Ruda_Texture_Target target, Texture_Format format, uint width, uint height, const void * data) {
+    if (!ctx.bound_texture) {
+        std::cerr << "rudaTexImage2D: no texture bound!" << std::endl;
+        return;
+    }
+    if (ctx.bound_texture->_data) {
+        if (RUDA_DEBUG) {
+            std::cout << "rudaTexImage2D: Deleting/Freeing old texture data." << std::endl;
+        }
+        if (CUDA_ENABLED) {
+            //freeTextureMemory(&ctx);
+        } else {
+            delete ctx.bound_texture->_data;
+            ctx.bound_texture->_data = nullptr;
+        }
+    }
+
+    if (CUDA_ENABLED) {
+        //cuda_bufferTexture(&ctx, (float*)data);
+    } else {
+        software_bufferTexture(&ctx, data, width, height, format);
     }
 }
 // These only really apply if the currently bound buffer object

@@ -83,7 +83,7 @@ void assemblePrimitives(Ruda_Context* ctx, std::vector<Triangle*>& tris, int cou
 	// Take all the vertices in the current RUDA_VERTEX_BUFFER
 	// up to count of course
 	// Construct triangles and apply ModelView Transformations
-	float* buffer_pointer, *color_buffer_pointer, *normal_buffer_pointer;
+	float* buffer_pointer, *color_buffer_pointer, *normal_buffer_pointer, *tex_coord_buffer;
 	buffer_pointer = nullptr;
 	color_buffer_pointer = nullptr;
 	normal_buffer_pointer = nullptr;
@@ -94,6 +94,8 @@ void assemblePrimitives(Ruda_Context* ctx, std::vector<Triangle*>& tris, int cou
 		color_buffer_pointer = (float*)(ctx->state.colorBuffer->buffer_pointer);
 	if (ctx->state.normalBuffer)
 		normal_buffer_pointer = (float*)(ctx->state.normalBuffer->buffer_pointer);
+	if (ctx->state.texCoordBuffer)
+		tex_coord_buffer = (float*)(ctx->state.texCoordBuffer->buffer_pointer);
 
 	std::vector<Vertex*> currTriangle;
 	for (int i = 0; i < count * 3; i += 3) {
@@ -104,6 +106,11 @@ void assemblePrimitives(Ruda_Context* ctx, std::vector<Triangle*>& tris, int cou
 			currTriangle.back()->color = vec3{color_buffer_pointer[i], color_buffer_pointer[i + 1], color_buffer_pointer[i + 2]};
 		if (normal_buffer_pointer)
 			currTriangle.back()->normal = vec3{normal_buffer_pointer[i], normal_buffer_pointer[i + 1], normal_buffer_pointer[i + 2]};
+		if  (tex_coord_buffer)
+			// Only two values per vertex, so instead of multiplying by 3 we should multiply by 2
+			currTriangle.back()->uv = vec2(tex_coord_buffer[i/3 * 2], tex_coord_buffer[i/3 * 2 + 1]);
+
+		// Once we've reached a complete triangle, we may push it back and begin modifying the next one.
 		if (currTriangle.size() == 3) {
 			tris.push_back(new Triangle(currTriangle[0], currTriangle[1], currTriangle[2]));
 			// Clear for next triangle to be built
@@ -217,13 +224,34 @@ void rasterize(Ruda_Context* ctx, Triangle* tri) {
 
 					// @todo angel1254mc
 					// Insert texture interpolation here if we are using textures, otherwise use colors
-					float r = w0 * v1Obj->color[0] + w1 * v2Obj->color[0] + w2 * v3Obj->color[0];
-					float g = w0 * v1Obj->color[1] + w1 * v2Obj->color[1] + w2 * v3Obj->color[1];
-					float b = w0 * v1Obj->color[2] + w1 * v2Obj->color[2] + w2 * v3Obj->color[2];
+					if (ctx->bound_texture != nullptr) {
+						float* texture_data = (float*) ctx->bound_texture->_data;
+                        float u = w0 * v1Obj->uv[0] + w1 * v2Obj->uv[0] + w2 * v3Obj->uv[0];
+                        float v = w0 * v1Obj->uv[1] + w1 * v2Obj->uv[1] + w2 * v3Obj->uv[1];
 
-					ctx->framebuffer[int(3*(p.x + p.y * ctx->width) + 0)] = r;
-					ctx->framebuffer[int(3*(p.x + p.y * ctx->width) + 1)] = g;
-					ctx->framebuffer[int(3*(p.x + p.y * ctx->width) + 2)] = b;
+                        // Map UV to texture coordinates
+                        int tex_x = u * (ctx->bound_texture->width - 1);
+                        int tex_y = v * (ctx->bound_texture->height - 1);
+
+                        // Retrieving RGB values from texture
+                        float r = texture_data[3 * (tex_y * ctx->bound_texture->width + tex_x) + 0];
+                        float g = texture_data[3 * (tex_y * ctx->bound_texture->width + tex_x) + 1];
+                        float b = texture_data[3 * (tex_y * ctx->bound_texture->width + tex_x) + 2];
+
+                        // Set framebuffer color
+                        ctx->framebuffer[int(3 * (p.x + p.y * ctx->width) + 0)] = r;
+                        ctx->framebuffer[int(3 * (p.x + p.y * ctx->width) + 1)] = g;
+                        ctx->framebuffer[int(3 * (p.x + p.y * ctx->width) + 2)] = b;
+                    } else {
+						// No texture, we use vertex colors
+						float r = w0 * v1Obj->color[0] + w1 * v2Obj->color[0] + w2 * v3Obj->color[0];
+						float g = w0 * v1Obj->color[1] + w1 * v2Obj->color[1] + w2 * v3Obj->color[1];
+						float b = w0 * v1Obj->color[2] + w1 * v2Obj->color[2] + w2 * v3Obj->color[2];
+
+						ctx->framebuffer[int(3*(p.x + p.y * ctx->width) + 0)] = r;
+						ctx->framebuffer[int(3*(p.x + p.y * ctx->width) + 1)] = g;
+						ctx->framebuffer[int(3*(p.x + p.y * ctx->width) + 2)] = b;
+					}
 					
 				}
 			}
@@ -327,3 +355,32 @@ void software_clearFB(Ruda_Context* ctx,  float r = 0, float g = 0, float b = 0)
 			ctx->framebuffer[(i * height  + j) * 3 + 2] = b;
 		};
 }
+
+int get_tex_size(uint width, uint height, Texture_Format format) {
+	if (format == RUDA_RGB || format == RUDA_RGB_INTEGER) {
+		return width * height * 3 * sizeof(float);
+	} else {
+		std::cerr << "get_tex_size: Invalid Texture Format given, can't calculate texture size" << std::endl;
+		return 0;
+	}
+}
+void software_bufferTexture(Ruda_Context* ctx, const void* data, uint width, uint height, Texture_Format format) {
+	// Note: texSize constitutes total size in bytes.
+	// We assume (for now) that texture data comes in buffers where each pixel has 3 values (rgb)
+	int texSize = get_tex_size(width, height, format);
+	
+	if (RUDA_DEBUG)
+            std::cout << "rudaBufferTexture: Copying texture over to texture->_data pointer" << std::endl;
+	// Create internal texture representation and copy data
+    ctx->bound_texture->_data = (u_char*)(new float[texSize/(sizeof(float))]);  
+    std::memcpy(ctx->bound_texture->_data, (data), texSize);
+	if (RUDA_DEBUG)
+            std::cout << "rudaBufferTexture: Finished Copying Texture" << std::endl;
+	// Initialize the rest of the texture data
+	ctx->bound_texture->width = width;
+	ctx->bound_texture->height = height;
+	ctx->bound_texture->format = format;
+	
+    if (RUDA_DEBUG)
+        std::cout << "rudaBufferTexture: Finished Initializing Texture" << std::endl;
+};

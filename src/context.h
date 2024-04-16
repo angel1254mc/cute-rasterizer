@@ -4,9 +4,25 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #define CUDA_ENABLED false
-#define RUDA_DEBUG false
+#define RUDA_DEBUG true
 
 typedef unsigned int uint;
+
+enum Ruda_Texture_Target {
+    RUDA_TEXTURE_2D,
+    //RUDA_TEXTURE_CUBE_MAP,
+    //RUDA_TEXTURE_2D_ARRAY,
+    //RUDA_TEXTURE_RECTANGLE
+};
+
+enum Texture_Format {
+    //RUDA_RED,
+    //RUDA_RG,
+    RUDA_RGB,
+    //RUDA_RGBA,
+    RUDA_RGB_INTEGER,
+};
+
 
 
 enum Buffer_Usage {
@@ -59,6 +75,19 @@ class Buffer_State {
     };
 
     ~Buffer_State();
+};
+
+class Ruda_Texture_Object {
+    public:
+	    int width = 0; // width in pixels
+	    int height = 0; // height in pixels
+        bool is_bound = false; // Used to denote whether texture is bound for drawing.
+        unsigned char* _data = nullptr;
+        // useful for tracking bpp when the time for texture mapping comes
+        Texture_Format format = RUDA_RGB; // By default, we use RGB values as float
+
+    inline unsigned char* data() const { return _data; }
+
 };
 
 
@@ -136,11 +165,14 @@ class Ruda_State {
 class Ruda_Context {
     public:
     std::vector<Buffer_State*> buffers;
+    std::vector<Ruda_Texture_Object*> textures;
     //std::vector<Buffer_Attributes*> vaos;
     Ruda_State state;
     Buffer_State* bound_buffer = nullptr;
+    Ruda_Texture_Object* bound_texture = nullptr;
     //Buffer_Attributes* bound_vao = nullptr;
     Buffer_Target bound_buffer_target;
+    Ruda_Texture_Target bound_texture_target;
     //Buffer_Attributes default_attributes;
     Buffer_Usage usage;
     
